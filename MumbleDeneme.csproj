@@ -143,5 +143,8 @@
   <ItemGroup>
     <Resource Include="mumblesharp.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Recordss\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
