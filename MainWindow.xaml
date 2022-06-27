@@ -7,6 +7,7 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
+        
         <Grid.ColumnDefinitions>
             <ColumnDefinition/>
             <ColumnDefinition/>
@@ -53,7 +54,8 @@
 
         <Label Grid.Row="1" Content="Ip adresi : "/>
         <TextBox x:Name="tbIp" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"/>
-        <ComboBox x:Name="cbPlayBackDevices" Margin="30" Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="2"/>
-        <ComboBox x:Name="cbRecordingDevices" Margin="30" Grid.ColumnSpan="2" Grid.Row="2"/>
+        <ListBox x:Name="lbUsers" Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2" BorderBrush="Black" BorderThickness="2"/>
+        <ComboBox x:Name="cbPlayBackDevices" SelectionChanged="CPlayBackDevices_SelectionChanged" Margin="30" Grid.Column="1" Grid.Row="2"/>
+        <ComboBox x:Name="cbRecordingDevices" SelectionChanged="CbRecordingDevices_SelectionChanged" Margin="30"  Grid.Row="2"/>
     </Grid>
 </Window>
