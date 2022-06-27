@@ -1,24 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 using MumbleSharp;
 using MumbleSharp.Model;
-using Message = MumbleSharp.Model.Message;
 
 namespace MumbleDeneme
 {
@@ -38,12 +28,20 @@ namespace MumbleDeneme
         ConnectionMumbleProtocol protocol;
         SpeakerPlayback playback;
         MicrophoneRecorder recorder;
+        System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
         public MainWindow()
         {
             InitializeComponent();
             mciSendString("open new Type waveaudio alias recsound", null, 0, IntPtr.Zero);
             protocol = new ConnectionMumbleProtocol();
+            protocol.encodedVoice = EncodedVoiceDelegate;
+            protocol.userJoinedDelegate = UserJoinedDelegate;
+
             playback = new SpeakerPlayback();
+
+            dispatcherTimer.Tick += new EventHandler(dispatcherTimer_Tick);
+            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 10);
+            dispatcherTimer.Start();
 
             _recording = false;
             _recordedIndex = 0;
@@ -57,7 +55,7 @@ namespace MumbleDeneme
             }
 
             cbPlayBackDevices.SelectedIndex = 0;
-            SpeakerPlayback.SelectedDevice = cbPlayBackDevices.SelectedIndex - 1;
+            SpeakerPlayback.SelectedDevice = cbPlayBackDevices.SelectedIndex;
 
             recorder = new MicrophoneRecorder(protocol);
             int recorderDeviceCount = NAudio.Wave.WaveIn.DeviceCount;
@@ -72,18 +70,34 @@ namespace MumbleDeneme
                 MicrophoneRecorder.SelectedDevice = 0;
                 cbRecordingDevices.SelectedIndex = 0;
             }
+            tbIp.Text = "localhost";
         }
-
-        private void cbPlaybackDevices_SelectedIndexChanged(object sender, EventArgs e)
+        private void AddPlayback(User user)
         {
-            // SpeakerPlayback.SelectedDevice = cbPlaybackDevices.SelectedIndex - 1; //cb combo box
+            if (user.Id != connection.Protocol.LocalUser.Id)
+                SpeakerPlayback.AddPlayer(user.Id, user.Voice);
         }
-
-        private void cbRecordingDevices_SelectedIndexChanged(object sender, EventArgs e)
+        
+        private void dispatcherTimer_Tick(object sender, EventArgs e)
         {
-            // MicrophoneRecorder.SelectedDevice = cbRecordingDevices.SelectedIndex;
+            if (connection != null)
+                if (connection.Process())
+                    Thread.Yield();
+                else
+                    Thread.Sleep(1);
         }
 
+        void EncodedVoiceDelegate(BasicMumbleProtocol proto, byte[] data, uint userId, long sequence, MumbleSharp.Audio.Codecs.IVoiceCodec codec, MumbleSharp.Audio.SpeechTarget target)
+        {
+            User user = proto.Users.FirstOrDefault(u => u.Id == userId);
+            AddPlayback(user);
+        }
+        
+        void UserJoinedDelegate(BasicMumbleProtocol proto, User user)
+        {
+            lbUsers.Items.Add(user.Name);
+        }
+        
         private void ConnectBtn_Clicked(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(tbChannelName.Text))
@@ -99,15 +113,41 @@ namespace MumbleDeneme
             if (connection != null)
             {
                 connection.Close();
+                protocol.Close();
                 connection = null;
             }
+            string addr = ip;
+            int port = 64738;
+            string srvConnectName = "Test" + "@" + ip + ":" + port;
 
-            string srvConnectName = "dummy" + "@" + ip + ":" + "64738";
+            connection = new MumbleConnection(new IPEndPoint(Dns.GetHostAddresses(addr).First(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork), port), protocol);
+            connection.Connect("Test", "", new string[0], srvConnectName);
 
-            connection = new MumbleConnection(new IPEndPoint(Dns.GetHostAddresses(ip).FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                , 64738), protocol);
+            //if (connection != null)
+            //    MessageBox.Show("Bağlandınız...", "Bağlantı", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            MessageBox.Show(connection.Host.ToString(), "Host",MessageBoxButton.OK);
+            //var loc = connection.Protocol.LocalUser;
+
+            while (connection.Protocol.LocalUser == null)
+            {
+                connection.Process();
+                Thread.Sleep(1);
+            }
         }
+        private void DisconnectBtn_Clicked(object sender, RoutedEventArgs e)
+        {
+            if (connection != null)
+            {
+                connection.Close();
+                connection = null;
+                protocol.Close();
+                lbUsers.Items.Clear();
+            }
 
+            if (connection == null)
+                MessageBox.Show("Bağlantı Kesildi...", "Bağlantı", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
         private void RecordBtn_Click(object sender, RoutedEventArgs e)
         {
             if (_recording)
@@ -122,21 +162,23 @@ namespace MumbleDeneme
             if (!_recording)
                 return;
 
-            string recordStr = "save recsound " + Directory.GetCurrentDirectory() + @"\Recordss\" + _recordedIndex.ToString() + ".wav";
-
+            //string recordStr = "save recsound " + Directory.GetCurrentDirectory() + @"\Recordss\" + _recordedIndex.ToString() + ".wav";
+            string recordStr = @"save recsound C:\Users\emre.kurt\Desktop\Emre\rec" + _recordedIndex.ToString() + ".wav";
             mciSendString(recordStr, null, 0, IntPtr.Zero);
             mciSendString("close recsound", null, 0, IntPtr.Zero);
             _recording = false;
             _recordedIndex++;
         }
 
-        private void DisconnectBtn_Clicked(object sender, RoutedEventArgs e)
+        private void CPlayBackDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if(connection != null)
-            {
-                connection.Close();
-                connection = null;
-            }
+            SpeakerPlayback.SelectedDevice = cbPlayBackDevices.SelectedIndex; //cb combo box
         }
+
+        private void CbRecordingDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            MicrophoneRecorder.SelectedDevice = cbRecordingDevices.SelectedIndex;
+        }
+        
     }
 }
